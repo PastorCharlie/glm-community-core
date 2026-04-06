@@ -1,0 +1,21 @@
+{
+  "name": "@glm/community-core",
+  "version": "1.0.0",
+  "description": "Shared community components for GLM and Discipleship Universe",
+  "main": "src/index.ts",
+  "scripts": {
+    "sync": "node scripts/sync-from-glm.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@supabase/supabase-js": ">=2",
+    "lucide-react": ">=0.300"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PastorCharlie/glm-community-core.git"
+  },
+  "license": "UNLICENSED",
+  "private": false
+}

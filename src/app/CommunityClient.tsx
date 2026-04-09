@@ -2090,6 +2090,61 @@ useEffect(() => {
            ════════════════════════════════════════════ */}
         {activeRoom === "vineyard" && (
           <div className="space-y-6">
+            {/* Discipleship Journey Progress Board */}
+            <div className="rounded-2xl border p-5 sm:p-6"
+              style={{ background: "linear-gradient(135deg, rgba(39,174,96,0.08), rgba(26,26,46,0.9))", borderColor: "rgba(39,174,96,0.2)" }}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(39,174,96,0.15)" }}>
+                  <span style={{ fontSize: 20 }}>🍇</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold" style={{ color: "#27ae60" }}>Discipleship Journey</h3>
+                  <p className="text-xs text-white/30">Community Progress &middot; {partnerships.length} active partnership{partnerships.length !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+              {/* Milestone badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+                {[
+                  { icon: "\u{1F331}", label: "First Steps", desc: "Partnership formed", check: () => partnerships.length > 0 },
+                  { icon: "\u{1F33F}", label: "Rooted", desc: "4+ weeks together", check: () => partnerships.some((p: any) => p.weeks_together >= 4) },
+                  { icon: "\u{1F347}", label: "Bearing Fruit", desc: "8+ weeks together", check: () => partnerships.some((p: any) => p.weeks_together >= 8) },
+                  { icon: "\u{1F33E}", label: "Abundant", desc: "12+ weeks together", check: () => partnerships.some((p: any) => p.weeks_together >= 12) },
+                  { icon: "\u2B50", label: "Faithful", desc: "All milestones", check: () => partnerships.some((p: any) => p.weeks_together >= 12) && partnerships.length >= 3 },
+                ].map((m, i) => {
+                  const achieved = m.check();
+                  return (
+                    <div key={i} className="rounded-xl p-3 text-center transition-all"
+                      style={{
+                        background: achieved ? "rgba(39,174,96,0.12)" : "rgba(255,255,255,0.02)",
+                        border: achieved ? "1px solid rgba(39,174,96,0.3)" : "1px solid rgba(255,255,255,0.05)",
+                        opacity: achieved ? 1 : 0.4,
+                      }}>
+                      <span style={{ fontSize: 24, filter: achieved ? "none" : "grayscale(1)" }}>{m.icon}</span>
+                      <p className="text-xs font-semibold mt-1" style={{ color: achieved ? "#27ae60" : "rgba(255,255,255,0.3)" }}>{m.label}</p>
+                      <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>{m.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Progress bar */}
+              {partnerships.length > 0 && (() => {
+                const maxWeeks = Math.max(...partnerships.map((p: any) => p.weeks_together || 0));
+                const pct = Math.min(100, Math.round((maxWeeks / 12) * 100));
+                return (
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-white/30">Journey Progress</span>
+                      <span className="text-xs font-bold" style={{ color: "#27ae60" }}>{pct}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
+                      <div className="h-2 rounded-full transition-all" style={{ width: pct + "%", background: "linear-gradient(90deg, #27ae60, #2ecc71)" }} />
+                    </div>
+                    <p className="text-[10px] text-white/20 mt-1">{maxWeeks} of 12 weeks toward Abundant Harvest</p>
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* My partnership section */}
             {currentUser && myPartnership ? (
               <div className="space-y-4">

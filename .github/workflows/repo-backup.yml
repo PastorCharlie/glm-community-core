@@ -1,0 +1,91 @@
+name: Backup repo to Supabase Storage
+
+on:
+  schedule:
+    - cron: '0 5 * * 0'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REPO_NAME: glm-community-core
+      BUCKET: repo-backups
+
+    steps:
+      - name: Checkout (full clone)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch all refs
+        run: |
+          git fetch --all --tags --force
+
+      - name: Create git bundle
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BUNDLE_NAME="${REPO_NAME}-${TIMESTAMP}.bundle"
+          git bundle create "${BUNDLE_NAME}" --all
+          echo "BUNDLE_NAME=${BUNDLE_NAME}" >> "$GITHUB_ENV"
+          echo "TIMESTAMP=${TIMESTAMP}" >> "$GITHUB_ENV"
+          ls -lh "${BUNDLE_NAME}"
+
+      - name: Upload bundle to Supabase Storage
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/upload-response.txt -w "%{http_code}" \
+            -X POST \
+            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${REPO_NAME}/${BUNDLE_NAME}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/octet-stream" \
+            -H "x-upsert: true" \
+            --data-binary @"${BUNDLE_NAME}")
+          echo "HTTP status: ${HTTP_STATUS}"
+          cat /tmp/upload-response.txt
+          echo ""
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Upload failed with HTTP ${HTTP_STATUS}"
+            exit 1
+          fi
+          echo "Bundle uploaded: ${BUCKET}/${REPO_NAME}/${BUNDLE_NAME}"
+
+      - name: Clean up bundles older than 30 days
+        run: |
+          RESPONSE=$(curl -s \
+            "${SUPABASE_URL}/storage/v1/object/list/${BUCKET}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"prefix\": \"${REPO_NAME}/\", \"limit\": 1000}")
+          CUTOFF=$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%S 2>/dev/null || date -u -v-30d +%Y-%m-%dT%H:%M:%S)
+          echo "$RESPONSE" | jq -r --arg cutoff "$CUTOFF" --arg repo "$REPO_NAME" '
+            .[] | select(.name != null and .name != "" and .name != ".emptyFolderPlaceholder") |
+            select(.created_at < $cutoff) |
+            "\($repo)/\(.name)"
+          ' | while read -r FILE_PATH; do
+            echo "Deleting old bundle: ${FILE_PATH}"
+            curl -s -X DELETE \
+              "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${FILE_PATH}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+          done
+          echo "Cleanup complete"
+
+      - name: Verify bundle is retrievable
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/verify-bundle.bundle -w "%{http_code}" \
+            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${REPO_NAME}/${BUNDLE_NAME}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Verification failed (HTTP ${HTTP_STATUS})"
+            exit 1
+          fi
+          git bundle verify /tmp/verify-bundle.bundle
+          echo "Bundle verified successfully"
